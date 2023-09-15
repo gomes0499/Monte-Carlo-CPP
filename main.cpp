@@ -8,6 +8,12 @@
 #include <cmath>
 #include <Eigen/Dense>
 
+// This program performs a Monte Carlo simulation to optimize a portfolio.
+// Uses Eigen library for matrix operations.
+
+// Function to convert map to Eigen Matrix
+// @param data: a map from stock symbol to their historical prices stored in Eigen::VectorXd
+// @return: a matrix where each column corresponds to a stock symbol
 Eigen::MatrixXd mapToEigenMatrix(const std::map<std::string, Eigen::VectorXd> &data) {
     // Assuming all vectors have the same length
     int rows = data.begin()->second.size();
@@ -77,7 +83,7 @@ std::map<std::string, Eigen::VectorXd> readCsv(const std::string &filename, Eige
     return data;
 }
 
-// Function to calculate daily return
+// Function to calculate daily return.
 Eigen::VectorXd calculateDailyReturn(const Eigen::VectorXd &prices) {
     int n = prices.size() - 1;  // Number of daily returns
     Eigen::VectorXd dailyReturn(n);
@@ -89,7 +95,7 @@ Eigen::VectorXd calculateDailyReturn(const Eigen::VectorXd &prices) {
     return dailyReturn;
 }
 
-// Function to calculate Standard Deviation
+// Function to calculate Standard Deviation.
 double calculateStandardDeviation(const Eigen::VectorXd &data) {
     int n = data.size();
 
@@ -113,7 +119,7 @@ double calculateStandardDeviation(const Eigen::VectorXd &data) {
     return standardDeviation;
 }
 
-// Function to calculate Monte Carlo Simulation
+// Function to calculate Monte Carlo Simulation.
 Eigen::VectorXd monteCarloSimulation(const Eigen::VectorXd &historicalPrices, int numSimulations) {
     int numDays = historicalPrices.size();
 
@@ -146,10 +152,12 @@ Eigen::VectorXd monteCarloSimulation(const Eigen::VectorXd &historicalPrices, in
     return simulatedPrices;
 }
 
-// Function to optimize the portfolio
+// Function to optimize portfolio using Monte Carlo simulation
+// @param returns: Matrix of historical returns for different stocks
+// @return: Best portfolio weights to maximize the Sharpe ratio
 Eigen::VectorXd optimizePortfolio(const Eigen::MatrixXd &returns) {
-    const int NUM_SIMULATIONS = 1000000;
-    const double RISK_FREE_RATE = 0.01;  // Assume a risk-free rate of 1%
+    const int NUM_SIMULATIONS = 1000000;  // Number of portfolio simulations
+    const double RISK_FREE_RATE = 0.01;  // Assumed risk-free rate
 
     Eigen::VectorXd best_weights(3);
     double max_sharpe_ratio = -std::numeric_limits<double>::infinity();
@@ -185,8 +193,7 @@ Eigen::VectorXd optimizePortfolio(const Eigen::MatrixXd &returns) {
 int main() {
     // Step 1: Read the CSV stocks data
     Eigen::MatrixXd matrixData;
-    std::map<std::string, Eigen::VectorXd> data = readCsv("/Users/gomes/Desktop/Projects/Monte-Carlo-CPP/price.csv",
-                                                          matrixData);
+    std::map<std::string, Eigen::VectorXd> data = readCsv("../price.csv",matrixData);
     std::cout << "Rows: " << matrixData.rows() << ", Columns: " << matrixData.cols() << std::endl;
 
     // Step 2: Calculate daily returns
