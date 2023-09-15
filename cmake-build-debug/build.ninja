@@ -51,7 +51,7 @@ build cmake_object_order_depends_target_Monte_Carlo_CPP: phony || CMakeFiles/Mon
 
 build CMakeFiles/Monte_Carlo_CPP.dir/main.cpp.o: CXX_COMPILER__Monte_Carlo_CPP_unscanned_Debug /Users/gomes/Desktop/Projects/Monte-Carlo-CPP/main.cpp || cmake_object_order_depends_target_Monte_Carlo_CPP
   DEP_FILE = CMakeFiles/Monte_Carlo_CPP.dir/main.cpp.o.d
-  FLAGS = -g -std=gnu++20 -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.3.sdk -fcolor-diagnostics
+  FLAGS = -g -std=gnu++17 -arch arm64 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.3.sdk -fcolor-diagnostics
   INCLUDES = -I/opt/homebrew/include/eigen3
   OBJECT_DIR = CMakeFiles/Monte_Carlo_CPP.dir
   OBJECT_FILE_DIR = CMakeFiles/Monte_Carlo_CPP.dir

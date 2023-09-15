@@ -2,160 +2,212 @@
 #include <fstream>
 #include <sstream>
 #include <string>
-#include <vector>
 #include <map>
-#include <cmath>
+#include <vector>
 #include <random>
+#include <cmath>
 #include <Eigen/Dense>
 
+// This program performs a Monte Carlo simulation to optimize a portfolio.
+// Uses Eigen library for matrix operations.
 
-// Function to read CSV
-std::map<std::string, Eigen::VectorXd> readCsv(const std::string &filename) {
-    std::ifstream file(filename);
-    std::string line, word;
-    std::vector<std::string> headers;
-    std::map<std::string, std::vector<double>> tempData; // temporary storage for data
-    std::map<std::string, Eigen::VectorXd> data;
+// Function to convert map to Eigen Matrix
+// @param data: a map from stock symbol to their historical prices stored in Eigen::VectorXd
+// @return: a matrix where each column corresponds to a stock symbol
+Eigen::MatrixXd mapToEigenMatrix(const std::map<std::string, Eigen::VectorXd> &data) {
+    // Assuming all vectors have the same length
+    int rows = data.begin()->second.size();
+    int cols = data.size();
 
-    if (file.good()) {
-        std::getline(file, line);
-        std::stringstream ss(line);
+    Eigen::MatrixXd matrix(rows, cols);
 
-        // Read Headers
-        while (std::getline(ss, word, ',')) {
-            headers.push_back(word);
-        }
-
-        // Read data
-        while (std::getline(file, line)) {
-            std::stringstream ss(line);
-            std::getline(ss, word, ','); // Ignoring Date
-
-            for (size_t i = 1; i < headers.size(); ++i) {
-                std::getline(ss, word, ',');
-                tempData[headers[i]].push_back(std::stod(word));
-            }
-        }
-
-        // Convert std::vector<double> to Eigen::VectorXd
-        for (const auto &item : tempData) {
-            Eigen::VectorXd vec(item.second.size());
-            vec = Eigen::VectorXd::Map(item.second.data(), item.second.size());
-            data[item.first] = vec;
-        }
-    } else {
-        std::cout << "Error opening the file." << std::endl;
+    int col = 0;
+    for (const auto &pair: data) {
+        matrix.col(col) = pair.second;
+        col++;
     }
 
+    return matrix;
+}
+
+// Function to read the CSV.
+std::map<std::string, Eigen::VectorXd> readCsv(const std::string &filename, Eigen::MatrixXd &matrixData) {
+    std::map<std::string, Eigen::VectorXd> data;
+    std::ifstream file(filename);
+    std::string line;
+
+    if (!file.is_open()) {
+        std::cout << "Error: Could not open file " << filename << std::endl;
+        return data;
+    }
+
+    // Read the header to get the stock symbols
+    std::getline(file, line);
+    std::stringstream headerStream(line);
+    std::string cell;
+    std::vector<std::string> symbols;
+
+    // Skip date column
+    std::getline(headerStream, cell, ',');
+
+    while (std::getline(headerStream, cell, ',')) {
+        symbols.push_back(cell);
+        data[cell] = Eigen::VectorXd();  // Initialize a VectorXd for each symbol
+    }
+
+    std::vector<std::vector<double>> tempData(symbols.size());
+
+    // Read the rest of the lines
+    while (std::getline(file, line)) {
+        std::stringstream lineStream(line);
+
+        // Skip date column for each row
+        std::getline(lineStream, cell, ',');
+
+        for (size_t i = 0; i < symbols.size(); ++i) {
+            std::getline(lineStream, cell, ',');
+            tempData[i].push_back(std::stod(cell));
+        }
+    }
+
+// Convert vector of vectors to Eigen::VectorXd and store it in the map
+    for (size_t i = 0; i < symbols.size(); ++i) {
+        Eigen::VectorXd vec(tempData[i].size());
+        for (size_t j = 0; j < tempData[i].size(); ++j) {
+            vec(j) = tempData[i][j];
+        }
+        data[symbols[i]] = vec;
+    }
+
+    matrixData = mapToEigenMatrix(data);  // populate matrixData
     return data;
 }
 
-// Function to calculate de daily return
-Eigen::VectorXd calculateDailyReturn(Eigen::Matrix<double, -1, 1> prices) {
-    Eigen::VectorXd returns(prices.size() - 1);
-    for (size_t i = 1; i < prices.size(); ++i) {
-        double dailyReturn = (prices[i] - prices[i - 1]) / prices[i - 1];
-        returns(i - 1) = dailyReturn;
+// Function to calculate daily return.
+Eigen::VectorXd calculateDailyReturn(const Eigen::VectorXd &prices) {
+    int n = prices.size() - 1;  // Number of daily returns
+    Eigen::VectorXd dailyReturn(n);
+
+    for (int i = 0; i < n; ++i) {
+        dailyReturn(i) = (prices(i + 1) - prices(i)) / prices(i);
     }
-    return returns;
+
+    return dailyReturn;
 }
 
-// Function to calculate mean
-double mean(const Eigen::VectorXd &v) {
-    return v.mean();
+// Function to calculate Standard Deviation.
+double calculateStandardDeviation(const Eigen::VectorXd &data) {
+    int n = data.size();
+
+    // If there's not enough data to calculate standard deviation, return 0
+    if (n <= 1) {
+        return 0.0;
+    }
+
+    // Calculate the mean of the data
+    double mean = data.mean();
+
+    // Calculate the sum of squared differences from the mean
+    double sumOfSquares = 0.0;
+    for (int i = 0; i < n; ++i) {
+        sumOfSquares += std::pow(data(i) - mean, 2);
+    }
+
+    // Calculate the standard deviation
+    double standardDeviation = std::sqrt(sumOfSquares / (n - 1));
+
+    return standardDeviation;
 }
 
-// Function to calculate Standard Deviation
-double std_dev(const Eigen::VectorXd &v, double mean) {
-    return std::sqrt((v.array() - mean).square().mean());
-}
+// Function to calculate Monte Carlo Simulation.
+Eigen::VectorXd monteCarloSimulation(const Eigen::VectorXd &historicalPrices, int numSimulations) {
+    int numDays = historicalPrices.size();
 
-// Function to calculate the Monte Carlo Simulation
-Eigen::VectorXd monteCarloSimulation(const Eigen::VectorXd &prices, int numSimulations) {
-    Eigen::VectorXd dailyReturn = calculateDailyReturn(prices);
-    double meanReturn = dailyReturn.mean();
-    double volatility = std::sqrt((dailyReturn.array() - meanReturn).square().mean());
+    // Calculate daily returns
+    Eigen::VectorXd dailyReturns(numDays - 1);
+    for (int i = 0; i < numDays - 1; ++i) {
+        dailyReturns(i) = (historicalPrices(i + 1) - historicalPrices(i)) / historicalPrices(i);
+    }
 
-    Eigen::VectorXd simulatedPrices(numSimulations);
-    double currentPrice = prices(prices.size() - 1);
+    // Calculate the mean and standard deviation of daily returns
+    double meanReturn = dailyReturns.mean();
+    double stdDevReturn = std::sqrt((dailyReturns.array() - meanReturn).square().sum() / (numDays - 2));
 
+    // Initialize random number generation
     std::default_random_engine generator;
     std::normal_distribution<double> distribution(0.0, 1.0);
 
+    // Initialize the simulated prices vector
+    Eigen::VectorXd simulatedPrices(numSimulations);
+
+    // Monte Carlo simulation
     for (int i = 0; i < numSimulations; ++i) {
+        double lastPrice = historicalPrices(numDays - 1);
         double z = distribution(generator);
-        double deltaT = 1;
-        double drift = meanReturn - (std::pow(volatility, 2) / 2) * deltaT;
-        double change = std::exp(drift * deltaT + volatility * std::sqrt(deltaT) * z);
-        double newPrice = currentPrice * change;
-        simulatedPrices(i) = newPrice;
+        double nextPrice = lastPrice * std::exp(
+                (meanReturn - 0.5 * stdDevReturn * stdDevReturn) + stdDevReturn * std::sqrt(1.0) * z);
+        simulatedPrices(i) = nextPrice;
     }
+
     return simulatedPrices;
 }
 
-// Function to optimize portfolio
-Eigen::MatrixXd simulatePortfolio(const Eigen::MatrixXd &returns, const Eigen::VectorXd &weights) {
-    std::cout << "returns: " << returns.rows() << " x " << returns.cols() << std::endl;
-    std::cout << "weights: " << weights.rows() << " x " << weights.cols() << std::endl;
+// Function to optimize portfolio using Monte Carlo simulation
+// @param returns: Matrix of historical returns for different stocks
+// @return: Best portfolio weights to maximize the Sharpe ratio
+Eigen::VectorXd optimizePortfolio(const Eigen::MatrixXd &returns) {
+    const int NUM_SIMULATIONS = 1000000;  // Number of portfolio simulations
+    const double RISK_FREE_RATE = 0.01;  // Assumed risk-free rate
 
-    Eigen::MatrixXd portfolioReturn = returns.transpose() * weights;
-    Eigen::MatrixXd portfolioRisk = weights.transpose() * returns * weights;
-
-    Eigen::MatrixXd result(2, 1);
-    result(0, 0) = portfolioReturn.mean();
-    result(1, 0) = std::sqrt(portfolioRisk.sum());
-
-    return result;
-}
-
-int main() {
-    // Lê os dados dos preços a partir do CSV
-    auto data = readCsv("/Users/gomes/Desktop/Projects/Monte-Carlo-CPP/price.csv");
-    std::map<std::string, Eigen::VectorXd> simulated_prices;  // Assumindo que monteCarloSimuation agora retorna Eigen::VectorXd
-    const int NUM_SIMULATIONS = 1000;
-
-    // Calcula as simulações de Monte Carlo para cada ativo e armazena em 'simulated_prices'
-    for (const auto &asset: data) {
-        simulated_prices[asset.first] = monteCarloSimulation(asset.second, NUM_SIMULATIONS);
-    }
-
-
-    // Cria uma matriz para armazenar os retornos simulados
-    Eigen::MatrixXd returns(simulated_prices.size(), NUM_SIMULATIONS);
-
-    // Popula a matriz 'returns' com os retornos simulados
-    int i = 0;
-    for (const auto &asset: simulated_prices) {
-        Eigen::VectorXd dailyReturn = calculateDailyReturn(asset.second);
-        returns.row(i) = dailyReturn;
-        ++i;
-    }
-
-    double max_return = -std::numeric_limits<double>::infinity();
     Eigen::VectorXd best_weights(3);
+    double max_sharpe_ratio = -std::numeric_limits<double>::infinity();
 
-    // Gerar carteiras aleatórias
+    std::default_random_engine generator;
+
     for (int i = 0; i < NUM_SIMULATIONS; ++i) {
         Eigen::VectorXd weights(3);
 
-        // Gerar pesos aleatórios que somam 1
+        // Generate random weights that sum to 1
         double w1 = ((double) rand() / (RAND_MAX));
         double w2 = ((double) rand() / (RAND_MAX)) * (1 - w1);
         double w3 = 1 - w1 - w2;
         weights << w1, w2, w3;
 
-        Eigen::MatrixXd result = simulatePortfolio(returns, weights);
-        if (result(0, 0) > max_return) {
-            max_return = result(0, 0);
+        Eigen::MatrixXd portfolioReturn = returns * weights;
+
+        double expected_return = portfolioReturn.mean();
+        double risk = std::sqrt((portfolioReturn.array() - expected_return).square().mean());
+
+        double sharpe_ratio = (expected_return - RISK_FREE_RATE) / risk;
+
+        if (sharpe_ratio > max_sharpe_ratio) {
+            max_sharpe_ratio = sharpe_ratio;
             best_weights = weights;
         }
     }
 
-    std::cout << "Melhor Carteira:" << std::endl;
-    std::cout << "Peso do Ativo 1: " << best_weights(0) << std::endl;
-    std::cout << "Peso do Ativo 2: " << best_weights(1) << std::endl;
-    std::cout << "Peso do Ativo 3: " << best_weights(2) << std::endl;
-    std::cout << "Retorno Esperado: " << max_return << std::endl;
+    return best_weights;
+}
+
+
+int main() {
+    // Step 1: Read the CSV stocks data
+    Eigen::MatrixXd matrixData;
+    std::map<std::string, Eigen::VectorXd> data = readCsv("../price.csv",matrixData);
+    std::cout << "Rows: " << matrixData.rows() << ", Columns: " << matrixData.cols() << std::endl;
+
+    // Step 2: Calculate daily returns
+    Eigen::MatrixXd returns = calculateDailyReturn(matrixData);
+
+    // Step 3: Optimize portfolio
+    Eigen::VectorXd best_weights = optimizePortfolio(returns);
+
+    // Display the results
+    std::cout << "Optimized Portfolio Weights:" << std::endl;
+    std::cout << "Asset 1: " << best_weights(0) << std::endl;
+    std::cout << "Asset 2: " << best_weights(1) << std::endl;
+    std::cout << "Asset 3: " << best_weights(2) << std::endl;
 
     return 0;
 }
+
