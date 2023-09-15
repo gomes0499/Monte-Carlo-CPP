@@ -14,11 +14,9 @@ In the context of portfolio optimization, Monte Carlo simulation can be used to 
 
 The Sharpe ratio is a measure to calculate the risk-adjusted performance of an investment. The Sharpe ratio is the average return earned in excess of the risk-free rate per unit of volatility or total risk.
 
-\[
-\text{Sharpe Ratio} = \frac{(R_t - R_f)}{\sigma}
-\]
+Sharpe Ratio = (Rx – Rf) / StdDev Rx
 
-where \( R_t \) is the portfolio return, \( R_f \) is the risk-free rate, and \( \sigma \) is the volatility of the portfolio.
+where ( R_x ) is the portfolio return, ( R_f ) is the risk-free rate, and \( StdDev Rx ) is the volatility of the portfolio.
 
 ## How the Program Works
 
